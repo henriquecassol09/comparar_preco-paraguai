@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Preços - Compare produtos de 5 lojas</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 2L7.17 4H4C2.9 4 2 4.9 2 6V20C2 21.1 2.9 22 4 22H20C21.1 22 22 21.1 22 20V6C22 4.9 21.1 4 20 4H16.83L15 2H9ZM12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7Z" fill="currentColor"/>
+                </svg>
+                <h1>Comparador de Preços</h1>
+            </div>
+            <p class="subtitle">Compare produtos em 5 lojas brasileiras</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-box">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Busque por iPhone, Samsung, Xiaomi, etc..." 
+                    autocomplete="off"
+                />
+            </div>
+        </div>
+
+        <div id="results" class="results"></div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Buscando produtos...</p>
+        </div>
+
+        <div id="empty" class="empty" style="display: none;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21 21L16.65 16.65M19 11C19 15.4183 15.4183 19 11 19C6.58172 19 3 15.4183 3 11C3 6.58172 6.58172 3 11 3C15.4183 3 19 6.58172 19 11Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <h3>Nenhum produto encontrado</h3>
+            <p>Tente buscar por outro termo</p>
+        </div>
+    </div>
+
+    <script>
+        let debounceTimer;
+        const searchInput = document.getElementById('searchInput');
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+        const emptyDiv = document.getElementById('empty');
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            const query = e.target.value.trim();
+
+            if (query.length < 2) {
+                resultsDiv.innerHTML = '';
+                emptyDiv.style.display = 'none';
+                return;
+            }
+
+            loadingDiv.style.display = 'flex';
+            resultsDiv.innerHTML = '';
+            emptyDiv.style.display = 'none';
+
+            debounceTimer = setTimeout(() => {
+                searchProducts(query);
+            }, 500);
+        });
+
+        async function searchProducts(query) {
+            try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const products = await response.json();
+
+                loadingDiv.style.display = 'none';
+
+                if (products.length === 0) {
+                    emptyDiv.style.display = 'flex';
+                    return;
+                }
+
+                displayProducts(products);
+            } catch (error) {
+                console.error('Erro ao buscar produtos:', error);
+                loadingDiv.style.display = 'none';
+                resultsDiv.innerHTML = '<div class="error">Erro ao buscar produtos. Tente novamente.</div>';
+            }
+        }
+
+        function displayProducts(products) {
+            resultsDiv.innerHTML = products.map(product => `
+                <div class="product-card">
+                    <div class="product-header">
+                        <img src="${product.image}" alt="${product.name}" class="product-image">
+                        <div class="product-info">
+                            <h3 class="product-name">${product.name}</h3>
+                            <p class="product-model">${product.model}</p>
+                        </div>
+                    </div>
+
+                    <div class="product-prices">
+                        ${product.stores.map(store => {
+                            const isBestPrice = store.price === Math.min(...product.stores.map(s => s.price));
+                            return `
+                                <div class="store-price ${isBestPrice ? 'best-price' : ''}">
+                                    <div class="store-info">
+                                        <span class="store-name">${store.name}</span>
+                                        ${isBestPrice ? '<span class="badge">Melhor Preço</span>' : ''}
+                                    </div>
+                                    <div class="price-info">
+                                        <span class="price">R$ ${store.price.toFixed(2)}</span>
+                                        <a href="${store.url}" target="_blank" rel="noopener noreferrer" class="store-link">
+                                            Ver na loja
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M18 13V19C18 20.1046 17.1046 21 16 21H5C3.89543 21 3 20.1046 3 19V8C3 6.89543 3.89543 6 5 6H11M15 3H21M21 3V9M21 3L10 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            </svg>
+                                        </a>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
